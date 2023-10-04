@@ -1,28 +1,48 @@
-#This script should be placed in the GAE Python SDK directory.
-#The path of the SDK will look like C:\Program Files (x86)\Google\google_appengine
-#The script is to be used in conjunction with the generated_bulkloader.yaml file
+import psycopg2
+from openpyxl import load_workbook
 
-#The script will download all types of entities from the GAE datastore except the StudentProfile entity type.
-#The backup files will be stored on the Desktop with a timestamp of when the the backup is performed.
+# Define the path to the mapping Excel sheet
+mapping_file_path = 'MappingSheet.xlsx'
 
+# Connect to the PostgreSQL database
+con = psycopg2.connect(
+    database="",
+    user="",
+    password="",
+    host="",
+    port=''
+)
 
-import os
-import datetime
+cursor_obj = con.cursor()
 
-#Creates a folder on desktop with a timestamp of the backup
-desktopFile = os.path.expanduser("~/Desktop/TM_Backup/")
-mydir = os.path.join(desktopFile, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-os.makedirs(mydir)
+# Read the MasterLine values from the mapping Excel sheet
+mapping_workbook = load_workbook(mapping_file_path)
+mapping_sheet = mapping_workbook.active
 
-#Runs a set of commands to download all the different types of entities from the datastore
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Account --filename %s/accounts.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Comment --filename %s/comment.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Course --filename %s/course.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Evaluation --filename %s/evaluation.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind FeedbackQuestion --filename %s/feedbackQuestion.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind FeedbackResponse --filename %s/feedbackResponse.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind FeedbackResponseComment --filename %s/feedbackResponseComment.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind FeedbackSession --filename %s/feedbackSession.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Instructor --filename %s/instructor.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Student --filename %s/student.csv" %mydir)
-os.system("bulkloader.py --download --url https://teammatesv4.appspot.com/remote_api  --config_file generated_bulkloader.yaml --kind Submission --filename %s/submission.csv" %mydir)
+masterline_values = {}
+
+for row in mapping_sheet.iter_rows(min_row=2, values_only=True):
+    masterline_id, cell_value = row
+    masterline_values[masterline_id] = cell_value
+
+# Execute the SQL query
+cursor_obj.execute("SELECT * FROM Updated_Figures.FinalApprovedReport")
+result = cursor_obj.fetchall()
+
+# Update the Excel workbook
+workbook = load_workbook('8.xlsx')  # Replace '8.xlsx' with the actual file name
+sheet = workbook['1']
+
+for row in result:
+    masterline_id = row[2]
+    if masterline_id in masterline_values:
+        cell_value = masterline_values[masterline_id]
+        # Assuming the cell address is also defined in the mapping sheet
+        cell_address = masterline_values.get(masterline_id)
+        if cell_address:
+            sheet[cell_address].value = row[4]  # Update the cell value
+
+workbook.save('example_modified.xlsx')
+
+# Close the database connection
+con.close()
